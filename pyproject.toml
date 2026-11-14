@@ -1,0 +1,42 @@
+[project]
+name = "datamate_zaic_2026"
+version = "1.0.0"
+description = "Hybrid DataMate & ZAIC 2026 Pipeline: Robust Ingestion, Canonical Semantic Views, Dynamic Hints, Multi-sample SQL & Rejection Sampling"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "duckdb>=1.4.0,<=2.0.0",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "xlrd>=2.0.1",
+    "pyarrow",
+    "python-calamine>=0.9",
+    "jsonschema>=4.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "transformers>=4.40.0",
+    "accelerate>=0.28.0",
+    "bitsandbytes",
+    "peft>=0.10.0",
+]
+dev = [
+    "pytest",
+    "matplotlib",
+    "nbformat",
+    "nbconvert",
+    "ipykernel",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["datamate", "app", "evaluation"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
