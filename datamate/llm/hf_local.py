@@ -71,9 +71,14 @@ class HFBackend(LLMBackend):
         print(f"[hf] {path} | GPU {vram_gb:.0f}GB | nạp {self.quant} | {dtype} | lai linear-attention: {self.hybrid}")
         model_class = AutoModelForCausalLM
         if read_text_config(path).get("model_type") == "qwen3_5_text":
-            # Official text-only loader also accepts the composite Qwen3.5 checkpoint.
-            from transformers import Qwen3_5ForCausalLM
-            model_class = Qwen3_5ForCausalLM
+            # Qwen3_5ForCausalLM chỉ có trong transformers>=5.2; fallback về Auto nếu phiên bản cũ hơn.
+            try:
+                from transformers import Qwen3_5ForCausalLM
+                model_class = Qwen3_5ForCausalLM
+            except ImportError:
+                print("[hf] WARNING: Qwen3_5ForCausalLM không tìm thấy (transformers<5.2). "
+                      "Dùng AutoModelForCausalLM thay thế – nâng cấp: pip install 'transformers>=5.2,<6'")
+                model_class = AutoModelForCausalLM
         try:
             model = model_class.from_pretrained(path, dtype=dtype, **kw)
         except TypeError:
