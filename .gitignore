@@ -1,0 +1,9 @@
+
+# Model weights
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Training checkpoints
+checkpoints/
