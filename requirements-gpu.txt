@@ -1,6 +1,6 @@
-# Server GPU & Training dependencies for Qwen / LoRA / vLLM
+# Server GPU & Training dependencies for Qwen3.5 / LoRA / vLLM
 -r requirements.txt
-transformers>=4.40.0,<5.0.0
+transformers>=5.2,<6
 accelerate>=0.28.0
 huggingface_hub
 bitsandbytes
