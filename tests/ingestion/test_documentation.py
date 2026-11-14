@@ -1,16 +1,16 @@
-"""Production contracts and guide accuracy against the actual export."""
+﻿"""Production contracts and guide accuracy against the actual export."""
 import hashlib
 
 import duckdb
 import pytest
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.store import IngestionStore
-from app.ingestion.documentation import DatabaseGuide
-from app.ingestion.documentation.run import DocumentationCommand
-from app.ingestion.run import IngestionCommand
-from app.ingestion.retype import RetypeService
-from app.ingestion.organization.analyze import OrganizationAnalyzer
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.store import IngestionStore
+from datamate.ingestion.documentation import DatabaseGuide
+from datamate.ingestion.documentation.run import DocumentationCommand
+from datamate.ingestion.run import IngestionCommand
+from datamate.ingestion.retype import RetypeService
+from datamate.ingestion.organization.analyze import OrganizationAnalyzer
 
 
 def source_at(directory):

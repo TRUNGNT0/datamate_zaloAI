@@ -1,8 +1,8 @@
-"""Test xuất dữ liệu SFT."""
+﻿"""Test xuất dữ liệu SFT."""
 import json
 
 from evaluation.fakes import GOOD_CODE, FakeBackend
-from app.agent.context import ContextBuilder
+from datamate.agent.context import ContextBuilder
 from evaluation.run_eval import run_train
 from training.export_sft import export_sft
 
@@ -17,7 +17,7 @@ def test_export_sft_keeps_only_correct_answers(cfg, tmp_path):
 
 
 def test_build_exemplar_bank_and_reuse_as_few_shot(cfg, tmp_path):
-    from app.agent.exemplars import ExemplarBank
+    from datamate.agent.exemplars import ExemplarBank
     from training.build_exemplars import build_exemplar_bank
     _solver, split, ev, _subs, logs = run_train(cfg, FakeBackend([GOOD_CODE]))
     path = str(tmp_path / "bank.jsonl")

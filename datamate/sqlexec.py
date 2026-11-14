@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from .hints import DEBT_WORDS
-from datamate.text import norm
+from .ingest import norm
 
 DEBT_CALL = re.compile(r"debt_(at|new|repaid)\s*\(")
 TYPES = ("number", "percent", "string", "date", "boolean", "list", "table", "unanswerable")

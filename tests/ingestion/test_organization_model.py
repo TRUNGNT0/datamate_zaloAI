@@ -1,14 +1,14 @@
-"""Stage-3 lossless decomposition, measure semantics, units and lifecycle."""
+﻿"""Stage-3 lossless decomposition, measure semantics, units and lifecycle."""
 import csv
 import json
 
 import duckdb
 import pytest
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.store import IngestionStore
-from app.ingestion.organization.analyze import OrganizationAnalyzer
-from app.ingestion.raw import RawData
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.store import IngestionStore
+from datamate.ingestion.organization.analyze import OrganizationAnalyzer
+from datamate.ingestion.raw import RawData
 
 
 @pytest.fixture

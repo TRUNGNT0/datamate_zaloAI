@@ -1,4 +1,4 @@
-"""Full integration with a scripted local transport; real ingestion and DuckDB execution."""
+﻿"""Full integration with a scripted local transport; real ingestion and DuckDB execution."""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -6,11 +6,11 @@ import sys
 
 import pytest
 
-from app.config import Config
-from app.local_pipeline import LocalPipelineConfig, LocalSQLPipeline
-from app.llm.base import GenerationError
-from app.llm.local_service import LocalLLMService
-from app.manifests.service import BusinessManifestService
+from datamate.config import Config
+from datamate.local_pipeline import LocalPipelineConfig, LocalSQLPipeline
+from datamate.llm.base import GenerationError
+from datamate.llm.local_service import LocalLLMService
+from datamate.manifests.service import BusinessManifestService
 from evaluation.fakes import write_split
 
 
@@ -134,7 +134,7 @@ def test_context_overflow_stops_before_generation():
 
 
 def test_manifest_batches_cover_wide_source_without_duplicate_tables(tmp_path):
-    from app.manifests.local import LocalManifestGenerator
+    from datamate.manifests.local import LocalManifestGenerator
     business = tmp_path / "data" / "wide"
     business.mkdir(parents=True)
     (business / "README.md").write_text("Wide source")
@@ -150,7 +150,7 @@ def test_manifest_batches_cover_wide_source_without_duplicate_tables(tmp_path):
 
 @pytest.fixture
 def conflicting_manifest(tmp_path):
-    from app.manifests.migration import ManifestMigrator
+    from datamate.manifests.migration import ManifestMigrator
     business = tmp_path / "data" / "biz_101"
     business.mkdir(parents=True)
     (business / "ban_hang.csv").write_text("Ngày tháng,Thanh tien,Quy ra ĐV lẻ\n2026-08-24,12000,6\n")
@@ -169,8 +169,8 @@ def conflicting_manifest(tmp_path):
 
 
 def test_biz101_metadata_conflicts_are_canonicalized_and_audited(conflicting_manifest, tmp_path):
-    from app.manifests.local import LocalManifestGenerator
-    from app.manifests.validation import ManifestValidator
+    from datamate.manifests.local import LocalManifestGenerator
+    from datamate.manifests.validation import ManifestValidator
     business, draft = conflicting_manifest
     assert len([e for c in draft["tables"][0]["columns"] for e in ManifestValidator.validate_column_semantics(c)]) == 3
     transport = LocalTransport(draft)
@@ -191,8 +191,8 @@ def test_biz101_metadata_conflicts_are_canonicalized_and_audited(conflicting_man
 
 
 def test_metadata_normalization_preserves_unknowns_and_unit_errors(conflicting_manifest):
-    from app.manifests.local import LocalManifestGenerator
-    from app.manifests.validation import ManifestValidator
+    from datamate.manifests.local import LocalManifestGenerator
+    from datamate.manifests.validation import ManifestValidator
     _, draft = conflicting_manifest
     columns = draft["tables"][0]["columns"]
     columns[0]["time_role"] = None
@@ -205,7 +205,7 @@ def test_metadata_normalization_preserves_unknowns_and_unit_errors(conflicting_m
 
 
 def test_metadata_normalization_does_not_accept_invalid_evidence(conflicting_manifest, tmp_path):
-    from app.manifests.local import LocalManifestGenerator
+    from datamate.manifests.local import LocalManifestGenerator
     business, draft = conflicting_manifest
     draft["tables"][0]["columns"][0]["source_refs"] = ["invented.reference"]
     transport = LocalTransport(draft)

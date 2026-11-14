@@ -1,9 +1,9 @@
-"""Test hàm trợ giúp tất định."""
+﻿"""Test hàm trợ giúp tất định."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from app.tools.helpers import (HELPERS, counts_as_revenue, fill_group, in_range, norm_text, order_state, period_range,
+from datamate.tools.helpers import (HELPERS, counts_as_revenue, fill_group, in_range, norm_text, order_state, period_range,
                                tet_range, to_date, to_number)
 
 

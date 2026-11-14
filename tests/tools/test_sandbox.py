@@ -1,8 +1,8 @@
-"""Test chạy code có giới hạn thời gian."""
+﻿"""Test chạy code có giới hạn thời gian."""
 import pandas as pd
 import pytest
 
-from app.tools.sandbox import CodeTimeout, run_code
+from datamate.tools.sandbox import CodeTimeout, run_code
 
 
 def test_sandbox_runs_and_times_out():

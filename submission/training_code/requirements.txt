@@ -1,0 +1,15 @@
+# Phụ thuộc huấn luyện (đã ghim). Cài trên máy có GPU, torch cu128: pip install -r requirements.txt
+transformers==5.22.2
+huggingface_hub==2.4.0
+tokenizers==0.23.3
+safetensors==0.8.0
+accelerate==1.15.0
+peft==0.21.3
+bitsandbytes==0.50.2
+pandas==2.3.3
+pyarrow==26.0.1
+duckdb==1.5.6
+jsonschema==4.26.0
+openpyxl==3.1.5
+xlrd==2.0.2
+python-dotenv==1.2.4

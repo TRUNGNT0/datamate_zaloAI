@@ -1,14 +1,15 @@
-"""Stage-1 safety and SQL evidence tests, with real DuckDB exports."""
+﻿"""Stage-1 safety and SQL evidence tests, with real DuckDB exports."""
 import csv
 import json
+import sys
 
 import duckdb
 import pytest
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.store import IngestionStore
-from app.ingestion.organization.analyze import OrganizationAnalyzer
-from app.ingestion.organization.run import OrganizationCommand
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.store import IngestionStore
+from datamate.ingestion.organization.analyze import OrganizationAnalyzer
+from datamate.ingestion.organization.run import OrganizationCommand
 
 
 @pytest.fixture
@@ -107,7 +108,7 @@ def test_composite_keys_and_scoped_relationship(export):
 
 
 def test_missing_key_and_empty_table_not_accepted(export):
-    _, result = export({'customers': (['customer_id'], [['001'], ['']]),
+    _, result = export({'customers': (['customer_id', 'name'], [['001', 'A'], ['', 'B']]),
                         'empty': (['order_id'], [])})
     assert find_key(result, 'customers', ['customer_id'])['status'] == 'rejected'
     assert find_key(result, 'empty', ['order_id'])['status'] == 'rejected'
@@ -125,6 +126,7 @@ def test_primary_description_alias_and_conflict():
     assert OrganizationAnalyzer.concept({'name': 'note', 'description': 'ghi chú; mã đơn liên quan'}) is None
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='Windows filesystem does not support double quotes in filenames')
 def test_quotes_in_names_and_case_sensitive_values(export):
     _, result = export({'parent"x': (['customer_id'], [['AbC']]),
                         'child': (['order_id', 'customer_id'], [['O1', 'abc']])})

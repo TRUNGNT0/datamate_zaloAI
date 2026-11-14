@@ -1,7 +1,7 @@
-"""Test dòng lệnh điểm vào."""
+﻿"""Test dòng lệnh điểm vào."""
 import argparse
 
-from app.main import add_common_args, config_from_args
+from datamate.main import add_common_args, config_from_args
 
 
 def test_cli_parses_config():

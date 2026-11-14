@@ -1,11 +1,11 @@
-import json
+﻿import json
 from pathlib import Path
 
 import duckdb
 import pytest
 
-from app.config import Config
-from app.tools.sql import SQLExecutor
+from datamate.config import Config
+from datamate.tools.sql import SQLExecutor
 from evaluation.run_eval import run_train
 
 
@@ -139,7 +139,7 @@ class TestSQLPipeline:
         assert cached_logs[0]["cache_hit"]
 
     def test_revenue_status_classification_covers_failed_and_in_transit(self):
-        from app.agent.sql_context import SQLContextBuilder
+        from datamate.agent.sql_context import SQLContextBuilder
 
         assert SQLContextBuilder.classify_revenue_status("Không giao được") == "exclude_failed_delivery"
         assert SQLContextBuilder.classify_revenue_status("Đang vận chuyển") == "include_in_transit"

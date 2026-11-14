@@ -1,4 +1,4 @@
-import json
+﻿import json
 import sqlite3
 from decimal import Decimal
 
@@ -7,10 +7,10 @@ import pandas as pd
 import pytest
 from openpyxl import Workbook
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.processing.normalization import ValueNormalizer
-from app.ingestion.raw import RawTable
-from app.ingestion.store import IngestionStore
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.processing.normalization import ValueNormalizer
+from datamate.ingestion.raw import RawTable
+from datamate.ingestion.store import IngestionStore
 
 
 def test_csv_source_locale_and_no_dropped_rows(tmp_path):
@@ -188,7 +188,7 @@ def test_categorical_descriptions_do_not_become_numbers(tmp_path):
 
 
 def test_retype_preserves_raw_order_formula_and_quantity(tmp_path):
-    from app.ingestion.retype import RetypeService
+    from datamate.ingestion.retype import RetypeService
     (tmp_path / "a.csv").write_text('Mã;Số lượng\n' + ''.join(f'{i:03};{i} chai\n' for i in range(1, 13)), encoding="utf-8")
     original = BusinessIngestion.ingest_business(tmp_path)
     database = IngestionStore.write_database(original, tmp_path / "out" / "data.duckdb")
@@ -198,7 +198,7 @@ def test_retype_preserves_raw_order_formula_and_quantity(tmp_path):
 
 
 def test_retype_keeps_partial_read_errors(tmp_path):
-    from app.ingestion.retype import RetypeService
+    from datamate.ingestion.retype import RetypeService
     (tmp_path / "a.csv").write_text('Mã\n001\n', encoding="utf-8")
     (tmp_path / "broken.xlsx").write_text('broken workbook')
     original = BusinessIngestion.ingest_business(tmp_path, strict=False)
@@ -222,7 +222,7 @@ def test_export_exact_decimals_and_lineage(tmp_path):
         assert json.loads(result) == ["001", "0.10"]
         assert con.execute(f"SELECT COUNT(*) FROM semantic.{table_id}").fetchone()[0] == 2
     assert (tmp_path / "out" / "REPORT.md").exists()
-    from app.ingestion.review import build_review
+    from datamate.ingestion.review import build_review
     entry = {"business_id": source.name, "tables": 1, "rows": 2, "status": "complete", "issue_counts": report["issue_counts"]}
     # The split-level reviewer expects a database under each business folder.
     split = tmp_path / "split"
@@ -242,7 +242,7 @@ def test_failures_are_not_silently_dropped(tmp_path):
 
 
 def test_opt_in_split_uses_layered_ingestion(split_dirs):
-    from app.ingestion.datasets.loader import DatasetLoader
+    from datamate.ingestion.datasets.loader import DatasetLoader
     train, _, _ = split_dirs
     biz = DatasetLoader.load_split(train, layered=True).business("b1")
     assert biz.ingestion is not None

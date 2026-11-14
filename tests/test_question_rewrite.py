@@ -1,11 +1,11 @@
-import json
+﻿import json
 from unittest.mock import Mock
 
 import pytest
 
-from app.llm import gemini
-from app.llm.base import GenerationError, QuotaExhausted
-from app.llm.prompts import QUESTION_REWRITE_SYSTEM_PROMPT
+from datamate.llm import gemini
+from datamate.llm.base import GenerationError, QuotaExhausted
+from datamate.llm.prompts import QUESTION_REWRITE_SYSTEM_PROMPT
 
 
 class TestQuestionRewrite:

@@ -1,9 +1,12 @@
 from itertools import islice
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Any, Iterable, Iterator
 
 from openpyxl import load_workbook
-import xlrd
+try:
+    import xlrd
+except ImportError:
+    xlrd = None
 
 from datamate.ingestion.sources.adapters.common import SourceTable, TabularLayout
 from datamate.ingestion.processing.normalization import IdentifierNormalizer
@@ -84,6 +87,8 @@ class ExcelAdapter:
         source_file: str,
         expected_headers: Iterable[str],
     ) -> Iterator[SourceTable]:
+        if xlrd is None:
+            raise ImportError("Gói 'xlrd' cần thiết để đọc file Excel định dạng cũ .xls. Vui lòng cài đặt: pip install xlrd")
         workbook = xlrd.open_workbook(path.as_posix(), on_demand=True)
         try:
             for worksheet in workbook.sheets():
@@ -117,7 +122,7 @@ class ExcelAdapter:
             workbook.release_resources()
 
     @staticmethod
-    def _xls_row_values(worksheet: xlrd.sheet.Sheet, row_index: int, datemode: int) -> tuple[object, ...]:
+    def _xls_row_values(worksheet: Any, row_index: int, datemode: int) -> tuple[object, ...]:
         if datemode not in (0, 1):
             raise ValueError(f"Unsupported Excel date mode: {datemode}.")
         values = []

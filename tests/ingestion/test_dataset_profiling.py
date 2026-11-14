@@ -1,7 +1,7 @@
-import pandas as pd
+﻿import pandas as pd
 
-from app.ingestion.datasets.loader import DatasetLoader
-from app.ingestion.datasets.profiling import DatasetProfiler
+from datamate.ingestion.datasets.loader import DatasetLoader
+from datamate.ingestion.datasets.profiling import DatasetProfiler
 
 
 def test_fix_header_moves_title_row_up():

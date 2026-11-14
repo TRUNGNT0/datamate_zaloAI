@@ -1,11 +1,11 @@
-"""Nhận diện model và quy tắc nạp cho Qwen3.5 (không cần GPU, không tải model)."""
+﻿"""Nhận diện model và quy tắc nạp cho Qwen3.5 (không cần GPU, không tải model)."""
 import json
 
 import pytest
 
-from app.config import Config
-from app.llm.hardware import MODEL_9B, apply_recommendation, recommend
-from app.llm.local_common import is_hybrid_model, is_qwen3_family, sampling_kwargs, use_4bit, weights_gb
+from datamate.config import Config
+from datamate.llm.hardware import MODEL_9B, apply_recommendation, recommend
+from datamate.llm.local_common import is_hybrid_model, is_qwen3_family, sampling_kwargs, use_4bit, weights_gb
 
 
 @pytest.mark.parametrize("name, expected", [("Qwen/Qwen3.5-9B", True), ("Qwen/Qwen3-14B", True),

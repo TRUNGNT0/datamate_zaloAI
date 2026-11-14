@@ -1,14 +1,14 @@
-import sqlite3
+﻿import sqlite3
 from pathlib import Path
 
 import duckdb
 from openpyxl import Workbook
 
-from app.ingestion.raw import RawData
-from app.ingestion.sources.adapters.csv_adapter import CsvAdapter
-from app.ingestion.sources.adapters.excel_adapter import ExcelAdapter
-from app.ingestion.sources.adapters.parquet_adapter import ParquetAdapter
-from app.ingestion.sources.adapters.sqlite_adapter import SqliteAdapter
+from datamate.ingestion.raw import RawData
+from datamate.ingestion.sources.adapters.csv_adapter import CsvAdapter
+from datamate.ingestion.sources.adapters.excel_adapter import ExcelAdapter
+from datamate.ingestion.sources.adapters.parquet_adapter import ParquetAdapter
+from datamate.ingestion.sources.adapters.sqlite_adapter import SqliteAdapter
 
 
 def test_source_reading_dispatches_through_format_adapters(tmp_path, monkeypatch):

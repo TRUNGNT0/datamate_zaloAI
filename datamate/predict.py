@@ -25,23 +25,52 @@ def parse_args(argv=None):
     p.add_argument("--data", type=Path, required=True, help="Path to data split folder (e.g. dataset/public_test)")
     p.add_argument("--output", type=Path, required=True, help="Output directory for submission.jsonl and logs")
     p.add_argument("--model", type=str, default="Qwen/Qwen3.5-9B", help="Model name or local path")
-    p.add_argument("--lora", type=str, default=None, help="Optional LoRA adapter directory")
+    p.add_argument("--lora", type=str, nargs="*", default=None, help="Optional LoRA adapter directory or list of adapters")
     p.add_argument("--backend", choices=("local", "gemini"), default="local", help="LLM backend")
     p.add_argument("--local-engine", choices=("auto", "vllm", "hf"), default="auto", help="Local inference engine")
     p.add_argument("--hf-quant", choices=("auto", "4bit", "none"), default="auto", help="HF quantization mode")
-    p.add_argument("--k", "--n-samples", dest="n_samples", type=int, default=3, help="Number of SQL samples per question")
+    p.add_argument("-k", "--k", "--n-samples", dest="k", type=int, default=3, help="Number of SQL samples per question")
     p.add_argument("--agree-min", type=int, default=2, help="Minimum matching consensus needed to answer")
-    p.add_argument("--max-retry", type=int, default=2, help="Max self-repair turns for failed SQL queries")
+    p.add_argument("--max-retry", "--repairs", dest="max_retry", type=int, default=2, help="Max self-repair turns for failed SQL queries")
     p.add_argument("--views", choices=("cached", "llm", "none"), default="cached", help="Semantic views mode")
     p.add_argument("--views-from", type=Path, default=Path("configs/public_v9"), help="Directory containing saved views JSONs")
     p.add_argument("--fewshot", type=Path, default=Path("assets/fewshot_bank.jsonl"), help="Few-shot exemplars bank file")
+    p.add_argument("--fewshot-k", type=int, default=4, help="Number of fewshot examples")
     p.add_argument("--limit", type=int, default=None, help="Max questions to run")
+    p.add_argument("--ids", type=Path, default=None, help="Optional list of question IDs to run")
     p.add_argument("--max-biz", type=int, default=None, help="Max businesses to run")
-    p.add_argument("--time-budget", type=float, default=None, help="Max execution time in seconds")
+    p.add_argument("--time-budget", "--deadline", dest="time_budget", type=float, default=None, help="Max execution time in seconds")
     p.add_argument("--seed", type=int, default=42, help="Random seed")
     p.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
+    p.add_argument("--threshold", type=float, default=0.5, help="Min vote share to answer")
     p.add_argument("--shard", default="0/1", help="i/n shard for distributed GPU processes")
-    return p.parse_args(argv)
+    p.add_argument("--quant", type=str, default=None, help="Quantization mode (e.g. fp8, 4bit)")
+    p.add_argument("--context", type=int, default=32768, help="Context length")
+    p.add_argument("--max-tokens", type=int, default=2048, help="Max tokens generated")
+    p.add_argument("--think-k", type=int, default=0, help="Thinking samples count")
+    p.add_argument("--think-budget", type=int, default=8192, help="Thinking token budget")
+    p.add_argument("--think-below", type=float, default=0.75, help="Thinking threshold")
+    p.add_argument("--gpu-mem", type=float, default=0.9, help="GPU memory fraction")
+    p.add_argument("--tp", type=int, default=1, help="Tensor parallel size")
+    p.add_argument("--engine", type=str, default=None, help="Extra engine config JSON string")
+    p.add_argument("--log-dir", type=Path, default=None, help="Custom log dir")
+    p.add_argument("--merge-into", type=Path, default=None, help="Merge into directory")
+    p.add_argument("--view-think", type=int, default=0, help="View thinking budget")
+    # Boolean flags from flags.sh / datamate-26
+    p.add_argument("--notes", action="store_true", help="Add notes before SQL")
+    p.add_argument("--lora-thinking", action="store_true", help="Use LoRA for thinking samples")
+    p.add_argument("--debt-views", action="store_true", default=True, help="Load debt views")
+    p.add_argument("--debt-route", action="store_true", help="Route debt questions to debt macros")
+    p.add_argument("--canon-names", action="store_true", default=True, help="Canonicalize names")
+    p.add_argument("--answer-unanswerable", action="store_true", default=True, help="Allow unanswerable answers")
+    p.add_argument("--catalog-cols", action="store_true", help="Include catalog columns")
+    p.add_argument("--hide-raw", action="store_true", help="Hide raw tables")
+    p.add_argument("--rule-lines", action="store_true", help="Include rule lines")
+    p.add_argument("--save-prompts", action="store_true", help="Save prompts in trace logs")
+    args = p.parse_args(argv)
+    if not hasattr(args, "repairs"):
+        args.repairs = getattr(args, "max_retry", 2)
+    return args
 
 
 def main(argv=None):
@@ -49,6 +78,10 @@ def main(argv=None):
     t0 = time.time()
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / "logs").mkdir(parents=True, exist_ok=True)
+    lora_path = args.lora[0] if isinstance(args.lora, list) and args.lora else args.lora
+
+    n_samples = getattr(args, "k", 3)
+    args.n_samples = n_samples
 
     cfg = Config(
         test_dir=str(args.data),
@@ -59,10 +92,10 @@ def main(argv=None):
         backend=args.backend,
         query_engine="sql",
         local_model=args.model,
-        local_lora=args.lora,
+        local_lora=lora_path,
         local_engine=args.local_engine,
         hf_quant=args.hf_quant,
-        n_samples=args.n_samples,
+        n_samples=n_samples,
         agree_min=args.agree_min,
         max_retry=args.max_retry,
         temperature=args.temperature,

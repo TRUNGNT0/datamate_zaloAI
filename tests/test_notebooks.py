@@ -1,8 +1,9 @@
 """Committed notebooks carry no outputs: outputs hold competition data (regulations §4.3)."""
 from pathlib import Path
 
-import nbformat
 import pytest
+
+nbformat = pytest.importorskip("nbformat")
 
 NOTEBOOKS = sorted((Path(__file__).resolve().parents[1] / "notebooks").glob("*.ipynb"))
 

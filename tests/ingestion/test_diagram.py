@@ -1,4 +1,4 @@
-"""Read-only ER diagrams: real metadata, no guessed links or embedded cell data."""
+﻿"""Read-only ER diagrams: real metadata, no guessed links or embedded cell data."""
 import csv
 import hashlib
 import json
@@ -7,9 +7,9 @@ from html.parser import HTMLParser
 import duckdb
 import pytest
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.store import IngestionStore
-from app.ingestion.organization.diagram import OrganizationDiagram
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.store import IngestionStore
+from datamate.ingestion.organization.diagram import OrganizationDiagram
 
 
 @pytest.fixture

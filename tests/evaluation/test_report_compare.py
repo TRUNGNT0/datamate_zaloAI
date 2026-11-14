@@ -1,8 +1,8 @@
-"""Tóm tắt lần chạy và so sánh có tính sai số."""
+﻿"""Tóm tắt lần chạy và so sánh có tính sai số."""
 import pandas as pd
 
-from app.llm.hardware import MODEL_7B, MODEL_14B, MODEL_14B_AWQ, apply_recommendation, recommend
-from app.config import Config
+from datamate.llm.hardware import MODEL_9B, apply_recommendation, recommend
+from datamate.config import Config
 from evaluation.compare import load_runs, verdict
 from evaluation.report import save_summary, summarize
 
@@ -34,8 +34,6 @@ def test_compare_accepts_clear_winner(tmp_path):
 
 
 def test_hardware_recommendation_by_vram():
-    assert recommend(40)["local_model"] == MODEL_14B and recommend(80)["local_engine"] == "auto"
-    assert recommend(24)["local_model"] == MODEL_14B_AWQ
-    assert recommend(15)["local_model"] == MODEL_7B and recommend(15)["local_engine"] == "hf"
+    assert recommend(40)["local_model"] == MODEL_9B and recommend(80)["local_engine"] == "hf"
     cfg = apply_recommendation(Config(backend="local"), {"name": "A100", "vram_gb": 40.0, "bf16": True, "count": 1})
-    assert cfg.local_model == MODEL_14B
+    assert cfg.local_model == MODEL_9B

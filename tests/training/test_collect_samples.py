@@ -1,11 +1,11 @@
-"""Thu dữ liệu SFT: mọi mẫu đúng, loại mẫu xấu, và ghi nhận lý do lỗi."""
+﻿"""Thu dữ liệu SFT: mọi mẫu đúng, loại mẫu xấu, và ghi nhận lý do lỗi."""
 import json
 
 from evaluation.fakes import GOOD_CODE, OTHER_CODE, FakeBackend
-from app.llm.base import LLMBackend
-from app.agent.context import ContextBuilder
-from app.agent.solver import Solver
-from app.ingestion.datasets.loader import DatasetLoader
+from datamate.llm.base import LLMBackend
+from datamate.agent.context import ContextBuilder
+from datamate.agent.solver import Solver
+from datamate.ingestion.datasets.loader import DatasetLoader
 from evaluation.run_eval import run_train
 from training.export_sft import correct_samples, export_sft, is_clean_code
 

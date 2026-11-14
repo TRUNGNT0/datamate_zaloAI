@@ -1,8 +1,8 @@
-import numpy as np
+﻿import numpy as np
 import pandas as pd
 import pytest
 
-from app.tools.results import canon, clean, coerce_result, extract_code, final_fmt, is_empty_result
+from datamate.tools.results import canon, clean, coerce_result, extract_code, final_fmt, is_empty_result
 
 
 def test_clean_drops_nan_and_converts_numpy_types():

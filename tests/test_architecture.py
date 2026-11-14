@@ -1,4 +1,4 @@
-"""Protect offline ingestion boundaries and supported command-line entry points."""
+﻿"""Protect offline ingestion boundaries and supported command-line entry points."""
 import importlib
 import json
 import subprocess
@@ -16,11 +16,11 @@ class TestArchitecture:
         # The boundary we need to protect is deterministic ingestion, not syntax style.
         script = """
 import sys
-import app.ingestion.processing.pipeline
-import app.ingestion.datasets.loader
+import datamate.ingestion.processing.pipeline
+import datamate.ingestion.datasets.loader
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from app.ingestion.processing.pipeline import IngestionPipeline
+from datamate.ingestion.processing.pipeline import IngestionPipeline
 with TemporaryDirectory() as tmp:
     root = Path(tmp)
     business = root / 'split' / 'data' / 'b1'

@@ -1,0 +1,17 @@
+# Context build là GỐC repo. KHÔNG loại submission/ (trọng số, training_code, dữ liệu huấn luyện nằm trong đó).
+.git
+.github
+dataset/
+outputs/
+notebooks/
+docs/
+tests/
+scripts/
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.env
+.env.*
+submission/models/**/.cache
+submission/*.tar
+submission/*.tar.gz

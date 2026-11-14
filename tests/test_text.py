@@ -1,5 +1,5 @@
-"""Test chuẩn hóa văn bản."""
-from app.text import colnorm, norm
+﻿"""Test chuẩn hóa văn bản."""
+from datamate.text import colnorm, norm
 
 
 def test_norm_and_colnorm():

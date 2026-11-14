@@ -1,6 +1,6 @@
-import json
+﻿import json
 
-from app.submission import dump_line, make_sub, validate_submission, write_submission
+from datamate.submission import dump_line, make_sub, validate_submission, write_submission
 
 
 def test_writes_every_id_in_order_without_nan(tmp_path):

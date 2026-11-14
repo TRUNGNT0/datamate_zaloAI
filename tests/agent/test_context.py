@@ -1,8 +1,8 @@
-"""Test dựng ngữ cảnh: gợi ý tất định, few-shot, và rulebook dài không làm hỏng."""
-from app.agent.context import ContextBuilder
-from app.agent.exemplars import ExemplarBank
-from app.config import Config
-from app.ingestion.datasets.loader import DatasetLoader
+﻿"""Test dựng ngữ cảnh: gợi ý tất định, few-shot, và rulebook dài không làm hỏng."""
+from datamate.agent.context import ContextBuilder
+from datamate.agent.exemplars import ExemplarBank
+from datamate.config import Config
+from datamate.ingestion.datasets.loader import DatasetLoader
 
 
 def build(cfg, split_dir, question, bank=None, business_id="b1"):

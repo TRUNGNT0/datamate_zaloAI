@@ -1,10 +1,10 @@
-"""Test quy đổi thời gian tương đối."""
+﻿"""Test quy đổi thời gian tương đối."""
 import pandas as pd
 
-from app.text import norm
-from app.tools.rules import prep_fact
-from app.tools.timeutil import describe_period, resolve_period, resolve_time
-from app.tools.viet_time import parse_cell_date, parse_time_of_day, in_shift
+from datamate.text import norm
+from datamate.tools.rules import prep_fact
+from datamate.tools.timeutil import describe_period, resolve_period, resolve_time
+from datamate.tools.viet_time import parse_cell_date, parse_time_of_day, in_shift
 
 
 def test_resolve_period_week_and_month():

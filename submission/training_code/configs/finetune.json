@@ -1,0 +1,8 @@
+{
+  "method": "LoRA (QLoRA 4-bit nếu VRAM không đủ bf16)",
+  "base": "Qwen/Qwen3.5-9B",
+  "rank": 16, "alpha": 32, "dropout": 0.05,
+  "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "in_proj_qkv", "in_proj_z", "out_proj"],
+  "max_len": 8192, "epochs": 2, "learning_rate": 0.0001, "grad_accum": 16, "scheduler": "cosine", "warmup_ratio": 0.05,
+  "loss": "chỉ trên phần trả lời của assistant (prompt bị che)", "seed": 0
+}

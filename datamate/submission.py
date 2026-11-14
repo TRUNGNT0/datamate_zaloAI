@@ -74,7 +74,7 @@ def check(sub_path, questions_path) -> list[str]:
     return validate_submission(str(sub_path), q_ids)
 
 
-def merge_shards(out_dir, questions_path, shards=None, quiet=False) -> None:
+def merge_shards(out_dir, questions_path, shards=None, quiet=False, copy_logs=True) -> None:
     from pathlib import Path
     out_dir = Path(out_dir)
     shard_dirs = sorted(shards.glob("shard*")) if shards else sorted(out_dir.glob("shard*"))
@@ -91,4 +91,54 @@ def merge_shards(out_dir, questions_path, shards=None, quiet=False) -> None:
     write_submission(list(all_subs.values()), q_ids, str(out_dir / "submission.jsonl"))
     if not quiet:
         print(f"Merged {len(shard_dirs)} shards into {out_dir / 'submission.jsonl'}")
+
+
+def fill_logs(log_dir, questions_path):
+    from pathlib import Path
+    log_dir = Path(log_dir)
+    questions = Path(questions_path)
+    n = 0
+    for line in questions.open(encoding="utf-8-sig"):
+        if not line.strip():
+            continue
+        q = json.loads(line)
+        f = log_dir / f"{q['id']}.json"
+        if not f.exists():
+            rec = {"id": q["id"], "business_id": q.get("business_id"), "question": q.get("question"), "as_of_date": q.get("as_of_date"),
+                   "answer": {"type": "abstain"}, "elapsed_ms": 0, "thinking": None, "code": None, "output": None,
+                   "note": "not processed: the business failed to load or the run stopped before reaching it"}
+            f.write_text(json.dumps(rec, ensure_ascii=False) + "\n", encoding="utf-8")
+            n += 1
+    print(f"{n} questions without a log record got an abstain record in {log_dir}")
+    return n
+
+
+def main():
+    import argparse
+    import sys
+    from pathlib import Path
+    ap = argparse.ArgumentParser(description="Datamate submission utilities")
+    ap.add_argument("command", choices=["check", "merge", "fill-logs"])
+    ap.add_argument("path", type=Path, help="check: submission file; merge: run dir; fill-logs: log dir")
+    ap.add_argument("--questions", type=Path, default=Path("dataset/public_test/questions.jsonl"))
+    ap.add_argument("--shards", type=Path, help="merge: directory holding shard*/")
+    ap.add_argument("--no-copy-logs", action="store_true", help="merge: leave shards logs where they are")
+    args = ap.parse_args()
+    if args.command == "merge":
+        merge_shards(args.path, args.questions, shards=args.shards, copy_logs=not args.no_copy_logs)
+        return
+    if args.command == "fill-logs":
+        fill_logs(args.path, args.questions)
+        return
+    errors = check(args.path, args.questions)
+    for e in errors[:20]:
+        print("ERROR", e)
+    if errors:
+        sys.exit(1)
+    print("format OK")
+
+
+if __name__ == "__main__":
+    main()
+
 

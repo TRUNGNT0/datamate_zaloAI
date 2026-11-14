@@ -1,7 +1,7 @@
-"""Test khớp từ trong câu hỏi với giá trị thật trong dữ liệu."""
+﻿"""Test khớp từ trong câu hỏi với giá trị thật trong dữ liệu."""
 import pandas as pd
 
-from app.tools.grounding import ValueIndex, format_hits
+from datamate.tools.grounding import ValueIndex, format_hits
 
 
 def make_index():

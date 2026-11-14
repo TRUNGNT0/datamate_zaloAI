@@ -1,5 +1,5 @@
-"""Test chia business fit/holdout."""
-from app.ingestion.datasets.splitting import BusinessSplitter
+﻿"""Test chia business fit/holdout."""
+from datamate.ingestion.datasets.splitting import BusinessSplitter
 
 
 def test_holdout_is_stable_and_order_independent():

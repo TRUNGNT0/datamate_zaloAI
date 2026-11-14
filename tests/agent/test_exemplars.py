@@ -1,5 +1,5 @@
-"""Test kho ví dụ few-shot."""
-from app.agent.exemplars import ExemplarBank
+﻿"""Test kho ví dụ few-shot."""
+from datamate.agent.exemplars import ExemplarBank
 
 ITEMS = [
     {"id": "a", "business_id": "b1", "question": "Tổng doanh thu tháng trước?", "type": "number", "code": "A"},

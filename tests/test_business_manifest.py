@@ -1,12 +1,12 @@
-from pathlib import Path
+﻿from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 import json
 
 import pytest
 
-from app.llm import gemini
-from app.manifests.service import BusinessManifestService
+from datamate.llm import gemini
+from datamate.manifests.service import BusinessManifestService
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = json.loads(

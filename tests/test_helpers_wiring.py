@@ -1,10 +1,10 @@
-"""Hàm trợ giúp phải dùng được TRONG code do model sinh ra, và prompt phải nêu chúng."""
+﻿"""Hàm trợ giúp phải dùng được TRONG code do model sinh ra, và prompt phải nêu chúng."""
 from evaluation.fakes import FakeBackend
-from app.agent.context import ContextBuilder
-from app.agent.prompts import build_system, prompt_hash
-from app.agent.solver import Solver
-from app.config import Config
-from app.ingestion.datasets.loader import DatasetLoader
+from datamate.agent.context import ContextBuilder
+from datamate.agent.prompts import build_system, prompt_hash
+from datamate.agent.solver import Solver
+from datamate.config import Config
+from datamate.ingestion.datasets.loader import DatasetLoader
 
 HELPER_CODE = ('```python\ndf = tables["sales"].copy()\nstart, end = period_range("this_month", AS_OF)\n'
                'mask = in_range(df["ngay"], start, end) & df["trang_thai"].map(counts_as_revenue)\n'

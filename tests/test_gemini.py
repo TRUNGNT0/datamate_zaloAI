@@ -1,9 +1,9 @@
-from types import SimpleNamespace
+﻿from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from app.llm import gemini
+from datamate.llm import gemini
 
 class TestGemini:
     def test_create_gemini_llm_loads_dotenv_and_uses_configured_model(self,

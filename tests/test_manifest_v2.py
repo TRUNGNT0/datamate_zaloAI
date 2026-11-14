@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+﻿from unittest.mock import Mock
 import json
 import sqlite3
 
@@ -6,12 +6,12 @@ from jsonschema import Draft202012Validator
 from openpyxl import Workbook
 import pytest
 
-from app.ingestion.processing.pipeline import IngestionPipeline
-from app.ingestion.sources.inventory import SourceInventory
-from app.manifests.migration import ManifestMigrator
-from app.manifests.service import BusinessManifestService, SCHEMA_FILE
-from app.manifests.validation import ManifestValidator
-from app.rules.rulebook import Rulebook
+from datamate.ingestion.processing.pipeline import IngestionPipeline
+from datamate.ingestion.sources.inventory import SourceInventory
+from datamate.manifests.migration import ManifestMigrator
+from datamate.manifests.service import BusinessManifestService, SCHEMA_FILE
+from datamate.manifests.validation import ManifestValidator
+from datamate.rules.rulebook import Rulebook
 
 class TestManifestV2:
     @staticmethod
@@ -104,8 +104,8 @@ class TestManifestV2:
         assert report['errors']
 
     def test_join_guard_blocks_reverse_fanout_and_unverified_edges(self):
-        from app.catalog.relationships import RelationshipService
-        from app.catalog.relationships import RelationshipService
+        from datamate.catalog.relationships import RelationshipService
+        from datamate.catalog.relationships import RelationshipService
         relation={'relationship_id':'r','from_table':'lines','to_table':'orders','cardinality':'many_to_one','status':'verified'}
         catalog={'relationships':[relation]}
         assert RelationshipService.validate_join(catalog,'r',aggregate_from='lines')['allowed']
@@ -115,7 +115,7 @@ class TestManifestV2:
         assert RelationshipService.verified(catalog)==[]
 
     def test_rejects_sum_of_stock_balance_and_mismatched_unit_basis(self):
-        from app.manifests.validation import ManifestValidator
+        from datamate.manifests.validation import ManifestValidator
         col=ManifestMigrator.mapped_column('balance','tồn sau lần nhập/bán/trả đó, theo đơn vị cơ bản',['readme.conventions'])
         assert ManifestValidator.validate_column_semantics(col)==[]
         col['aggregation']='sum'
@@ -125,7 +125,7 @@ class TestManifestV2:
         assert any('unit_basis=sale_unit' in e for e in ManifestValidator.validate_column_semantics(col))
 
     def test_readme_enrichment_requires_literal_unique_binding(self, tmp_path):
-        from app.manifests.migration import ManifestMigrator
+        from datamate.manifests.migration import ManifestMigrator
         _,_,manifest,_=TestManifestV2.fixture_business(tmp_path)
         sections=[{'evidence_id':'readme.bang','text':'**id** là mã đơn; `orders.amount` là số khách phải trả cho cả đơn.'}]
         ManifestMigrator.enrich_explicit_readme_definitions(manifest,sections)

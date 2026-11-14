@@ -1,4 +1,4 @@
-"""Stage 2: exact conservation, safe joins, catalog ownership and rollback."""
+﻿"""Stage 2: exact conservation, safe joins, catalog ownership and rollback."""
 import csv
 import json
 
@@ -6,11 +6,11 @@ import duckdb
 import pytest
 from openpyxl import Workbook
 
-from app.ingestion.layered import BusinessIngestion
-from app.ingestion.store import IngestionStore
-from app.ingestion.organization.analyze import OrganizationAnalyzer
-from app.ingestion.organization.build import OrganizationBuilder
-from app.ingestion.raw import RawData
+from datamate.ingestion.layered import BusinessIngestion
+from datamate.ingestion.store import IngestionStore
+from datamate.ingestion.organization.analyze import OrganizationAnalyzer
+from datamate.ingestion.organization.build import OrganizationBuilder
+from datamate.ingestion.raw import RawData
 
 
 @pytest.fixture

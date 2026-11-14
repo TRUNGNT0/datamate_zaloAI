@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 from datetime import datetime
 import json
 import sqlite3
@@ -7,8 +7,8 @@ from jsonschema import Draft202012Validator
 from openpyxl import Workbook
 import duckdb
 
-from app.ingestion.processing.normalization import IdentifierNormalizer, ValueNormalizer
-from app.ingestion.processing.pipeline import IngestionPipeline
+from datamate.ingestion.processing.normalization import IdentifierNormalizer, ValueNormalizer
+from datamate.ingestion.processing.pipeline import IngestionPipeline
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_SCHEMA_PATH = ROOT / "schemas" / "catalog.schema.json"

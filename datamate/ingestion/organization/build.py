@@ -48,8 +48,9 @@ class OrganizationBuilder:
     @staticmethod
     def family(table):
         source = table['source']
-        if source.get('sheet'):
-            return ('workbook', source['file']), OrganizationBuilder.period_name(source['sheet'])
+        sheet = source.get('sheet') or (source.get('source_object') if source.get('format') in ('xlsx', 'xls') else None)
+        if sheet:
+            return ('workbook', source['file']), OrganizationBuilder.period_name(sheet)
         stem = Path(source['file']).stem
         match = re.fullmatch(r'(.+?)[_. -]((?:\d{4}[_ .-](?:[Tt])?\d{1,2})|(?:(?:[Tt])?\d{1,2}[_ .-]\d{4}))', stem)
         if match:
