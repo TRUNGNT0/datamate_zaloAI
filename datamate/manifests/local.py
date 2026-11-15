@@ -61,6 +61,21 @@ class LocalManifestGenerator:
                     column[field] = value
         return result, corrections
 
+    @staticmethod
+    def restrict_columns(part, expected):
+        """Giữ đúng các cột của batch (bỏ cột thuộc batch khác, cột trùng, cột lạ). Trả về (part, danh sách cột bị bỏ)."""
+        wanted, seen, kept, dropped = set(expected), set(), [], []
+        table = part["tables"][0]
+        for column in table["columns"]:
+            name = column["source_name"]
+            if name in wanted and name not in seen:
+                seen.add(name)
+                kept.append(column)
+            else:
+                dropped.append(name)
+        table["columns"] = kept
+        return part, dropped
+
     def fit_evidence(self, prompt, schema):
         """Select complete evidence sections for a column batch, never truncate source/schema."""
         system = self.llm.json_system(BATCH_SYSTEM_PROMPT, schema)
@@ -125,9 +140,17 @@ class LocalManifestGenerator:
                 for key in ("table_role", "grain"):
                     table["items"]["properties"][key]["const"] = merged_tables[identity][key]
             # Keep all object identities/column names for documented cross-table relations.
-            inventory = [{"source_file": s["source_file"], "source_object": s["source_object"],
-                          "columns": [c["source_name"] for c in s["columns"]]}
-                         for s in data["source_inventory"]["objects"]]
+            batch_names = [c["source_name"] for c in source["columns"] if c["source_name"]]
+            inventory = []
+            for s in data["source_inventory"]["objects"]:
+                entry = {"source_file": s["source_file"], "source_object": s["source_object"]}
+                names = [c["source_name"] for c in s["columns"]]
+                if (s["source_file"], s["source_object"]) == identity:   # object đang là target: tách cột batch này / batch khác
+                    entry["columns"] = batch_names
+                    entry["columns_handled_in_other_batches"] = [n for n in names if n not in set(batch_names)]
+                else:
+                    entry["columns"] = names
+                inventory.append(entry)
             prompt = {"business_id": directory.name, "target_source": source, "source_index": inventory,
                       "readme_sections": data["readme_sections"], "rulebook_sections": data["rulebook_sections"],
                       "evidence_ids": data["_evidence_ids"],
@@ -136,7 +159,8 @@ class LocalManifestGenerator:
                                                    for name, (unit, aggregation) in ManifestValidator.COLUMN_CONTRACTS.items()},
                           "time_role_matches_semantic_name": sorted(ManifestValidator.TIME_ROLES),
                           "note": "Keep genuinely unknown metadata unknown/null. Do not guess semantic_name or units to satisfy these rules."},
-                      "instruction": "Map exactly the supplied column batch of this source object. Include ALL supplied columns, no others. "
+                      "instruction": f"Map exactly the {len(batch_names)} columns of target_source.columns. Include ALL of them and no others: "
+                                     "columns listed under columns_handled_in_other_batches must NOT appear in tables[0].columns. "
                                      "Keep undocumented semantics unknown. "
                                      "Include only facts/relationships supported by supplied evidence. "
                                      "The source profile evidence id is profile:<source_file>::<source_object>. "
@@ -152,14 +176,20 @@ class LocalManifestGenerator:
                         request = json.dumps(prompt, ensure_ascii=False) + error
                         part = self.llm.json(BATCH_SYSTEM_PROMPT, request, schema, task="manifest")
                     Draft202012Validator(schema).validate(part)
+                    expected = [c["source_name"] for c in source["columns"] if c["source_name"]]
+                    part, dropped = self.restrict_columns(part, expected)
+                    if dropped:
+                        print(f"[manifest] {directory.name} batch {batch_number}: bỏ {len(dropped)} cột ngoài batch/trùng: {dropped}", flush=True)
                     bindings = ManifestValidator.validate(part, data["source_inventory"], data["_evidence_ids"])
                     if bindings["errors"]:
                         raise ValueError("; ".join(bindings["errors"]))
                     part, corrections = self.canonicalize_metadata(part)
                     self.validate(part, data, complete=False)
                     names = {c["source_name"] for c in part["tables"][0]["columns"]}
-                    if names != {c["source_name"] for c in source["columns"] if c["source_name"]}:
-                        raise ValueError("Target source must include every observed column")
+                    missing = [n for n in expected if n not in names]
+                    if missing:
+                        raise ValueError(f"Target source is missing columns {missing}; unexpected columns ignored: {dropped}. "
+                                         f"Return exactly the {len(expected)} columns of target_source.columns.")
                     break
                 except GenerationError as exc:
                     JsonStore.write({"error": str(exc), "manifest": getattr(exc, "last_raw", None),
