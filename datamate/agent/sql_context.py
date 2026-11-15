@@ -26,25 +26,44 @@ class SQLContextBuilder:
             raise ValueError("business_id không hợp lệ")
         output = Path(self.cfg.database_dir) / business_id / "current"
         database = output / "data.duckdb"
-        manifest = (Path(self.cfg.manifest_dir) if self.cfg.manifest_dir else root / "manifests") / f"{business_id}.json"
-        if self.cfg.require_prepared_database and not manifest.is_file():
-            raise ValueError(f"Missing prepared manifest: {manifest}")
-        manifest = manifest if manifest.exists() else None
-        overrides = self.cfg.ingestion_overrides.get(business_id, split.ingestion_overrides.get(business_id))
-        signature = IngestionPipeline.input_fingerprint(business_dir, rulebook=split.rulebook, manifest_path=manifest, overrides=overrides)
-        catalog = None
-        if database.exists() and not self.cfg.rebuild_database:
-            import duckdb
+        if self.cfg.ingestion_mode == "direct":
+            from datamate.ingest import load_business, profile
+
+            direct_db, meta = load_business(
+                root, business_id, canon=self.cfg.canon_names, database_path=database
+            )
             try:
-                catalog = CatalogService.read_catalog(database)
-            except (duckdb.Error, ValueError):
-                pass  # Old/incomplete cache: rebuild from sources.
-        if (catalog is None or catalog.get("pipeline_version") != PIPELINE_VERSION
-                or catalog.get("input_fingerprint") != signature):
-            if self.cfg.require_prepared_database:
-                raise ValueError(f"Database missing or stale: {database}; run prepare_datasets() first")
-            catalog = IngestionPipeline.ingest(business_dir, output, manifest,
-                rulebook=split.rulebook, overrides=overrides)
+                self._build_direct_layers(direct_db, business_id, meta)
+                known_tables = {table["name"] for table in meta["tables"]}
+                for (name,) in direct_db.execute(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'main' AND starts_with(table_name, 'v_') ORDER BY table_name"
+                ).fetchall():
+                    if name not in known_tables:
+                        meta["tables"].append(profile(direct_db, name, "cached semantic view"))
+                catalog = self._direct_catalog(direct_db, business_id, meta)
+            finally:
+                direct_db.close()
+        else:
+            manifest = (Path(self.cfg.manifest_dir) if self.cfg.manifest_dir else root / "manifests") / f"{business_id}.json"
+            if self.cfg.require_prepared_database and not manifest.is_file():
+                raise ValueError(f"Missing prepared manifest: {manifest}")
+            manifest = manifest if manifest.exists() else None
+            overrides = self.cfg.ingestion_overrides.get(business_id, split.ingestion_overrides.get(business_id))
+            signature = IngestionPipeline.input_fingerprint(business_dir, rulebook=split.rulebook, manifest_path=manifest, overrides=overrides)
+            catalog = None
+            if database.exists() and not self.cfg.rebuild_database:
+                import duckdb
+                try:
+                    catalog = CatalogService.read_catalog(database)
+                except (duckdb.Error, ValueError):
+                    pass  # Old/incomplete cache: rebuild from sources.
+            if (catalog is None or catalog.get("pipeline_version") != PIPELINE_VERSION
+                    or catalog.get("input_fingerprint") != signature):
+                if self.cfg.require_prepared_database:
+                    raise ValueError(f"Database missing or stale: {database}; run prepare_datasets() first")
+                catalog = IngestionPipeline.ingest(business_dir, output, manifest,
+                    rulebook=split.rulebook, overrides=overrides)
         if catalog["business_id"] != business_id:
             raise ValueError("Catalog không thuộc business đang hỏi")
         tables = []
@@ -89,9 +108,10 @@ class SQLContextBuilder:
                     profile = column.get("profile", {})
                     row_count = profile.get("row_count", table["row_count"])
                     null_count = profile.get("null_count", 0)
-                    parse_failed_count = profile.get("parse_failed_count", 0)
-                    source_null_count = max(0, null_count - parse_failed_count)
-                    present_count = max(0, row_count - source_null_count)
+                    parse_audited = "parse_failed_count" not in profile or profile["parse_failed_count"] is not None
+                    parse_failed_count = profile.get("parse_failed_count", 0) if parse_audited else None
+                    source_null_count = max(0, null_count - parse_failed_count) if parse_audited else None
+                    present_count = max(0, row_count - source_null_count) if parse_audited else None
                     item = {k: column.get(k) for k in (
                         "physical_name", "source_name", "duckdb_type", "description",
                         "semantic_name", "semantic_status", "unit_basis", "aggregation", "time_role", "profile", "conversion")}
@@ -102,9 +122,12 @@ class SQLContextBuilder:
                         "typed_value_count": max(0, row_count - null_count),
                         "parse_success_rate": (
                             round((present_count - parse_failed_count) / present_count, 4)
-                            if present_count else None
+                            if parse_audited and present_count else None
                         ),
-                        "status": "parse_failures" if parse_failed_count else "no_parse_failures",
+                        "status": (
+                            "not_audited" if not parse_audited else
+                            "parse_failures" if parse_failed_count else "no_parse_failures"
+                        ),
                     }
                     col = TabularLayout.quote_identifier(column["physical_name"])
                     if (column.get("time_role") or re.search(r"ngay|date|thoi_gian", column["physical_name"])):
@@ -135,6 +158,8 @@ class SQLContextBuilder:
                    "quality": catalog.get("quality", {}),
                    "organization": self.organization_context(catalog),
                    "semantic_views": catalog.get("semantic_views", []),
+                   "ingestion_mode": self.cfg.ingestion_mode,
+                   "ingestion_issues": catalog.get("ingestion_issues", []),
                    "rulebook": split.rulebook,
                    "readme": readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""}
         if split.calendar is not None:
@@ -146,6 +171,82 @@ class SQLContextBuilder:
             fingerprint = hashlib.file_digest(stream, "sha256").hexdigest()
         self.prepared[key] = database, context, fingerprint
         return self.prepared[key]
+
+    @staticmethod
+    def _direct_catalog(connection, business_id, meta):
+        tables = []
+        for table in meta["tables"]:
+            columns = []
+            for name, kind, distinct, values in table["columns"]:
+                quoted_table = TabularLayout.quote_identifier(table["name"])
+                quoted_column = TabularLayout.quote_identifier(name)
+                null_count = connection.execute(
+                    f"SELECT count(*) - count({quoted_column}) FROM {quoted_table}"
+                ).fetchone()[0]
+                columns.append({
+                    "physical_name": name,
+                    "source_name": name,
+                    "duckdb_type": kind,
+                    "description": None,
+                    "semantic_name": None,
+                    "semantic_status": None,
+                    "unit_basis": None,
+                    "aggregation": None,
+                    "time_role": None,
+                    "profile": {"row_count": table["rows"], "null_count": null_count, "parse_failed_count": None},
+                    "values": values if distinct is not None else None,
+                })
+            tables.append({
+                "physical_name": table["name"],
+                "source_files": [table["source"]],
+                "source_objects": [table["source"].split("#", 1)[-1]],
+                "table_role": None,
+                "grain": None,
+                "row_count": table["rows"],
+                "columns": columns,
+                "lineage": None,
+                "issue_counts": {},
+            })
+        return {
+            "business_id": business_id,
+            "tables": tables,
+            "relationships": [],
+            "facts": [],
+            "unresolved": [],
+            "quality": {"status": "not_audited"},
+            "organization": {},
+            "semantic_views": [],
+            "ingestion_issues": meta.get("ingestion_issues", []),
+        }
+
+    def _build_direct_layers(self, connection, business_id, meta):
+        if self.cfg.views == "none":
+            return
+        views_dir = Path(getattr(self.cfg, "views_from", "configs/public_v9") or "configs/public_v9")
+        for filename, builder in (
+            (f"_views_{business_id}.json", "views"),
+            (f"_debt_{business_id}.json", "debts"),
+        ):
+            if builder == "debts" and not self.cfg.debt_views:
+                continue
+            path = views_dir / filename
+            if not path.is_file():
+                continue
+            try:
+                import json
+                if builder == "views":
+                    from datamate import views
+                    statements = json.loads(path.read_text(encoding="utf-8"))
+                    views.build(connection, statements)
+                else:
+                    from datamate import debts
+                    statements = json.loads(path.read_text(encoding="utf-8"))
+                    if statements:
+                        debts.build(connection, statements)
+            except Exception as error:
+                issue = {"file": filename, "error": f"{type(error).__name__}: {error}"}
+                meta["ingestion_issues"].append(issue)
+                print(f"[direct-ingest] {business_id}/{filename}: {issue['error']}", flush=True)
 
     @staticmethod
     def organization_context(catalog):

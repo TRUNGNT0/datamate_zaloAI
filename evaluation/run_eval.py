@@ -22,7 +22,7 @@ def run_train(cfg: Config, backend: LLMBackend | None, use_llm: bool = True, sub
     """Chạy một phần train (theo cfg.max_biz/per_biz) rồi chấm PA. Trả (solver, split, ev, subs, logs).
 
     subset: "all" | "fit" (trừ nhóm giữ lại, dùng để dựng kho ví dụ/SFT) | "holdout" (chỉ nhóm giữ lại, PA đáng tin)."""
-    split = DatasetLoader.load_split(cfg.train_dir)
+    split = DatasetLoader.load_split(cfg.train_dir, layered=(getattr(cfg, "ingestion_mode", "direct") == "layered"))
     if split.answers is None:
         raise ValueError("Evaluation cần answers.jsonl để đối chiếu")
     solver = SQLSolver(cfg, backend) if cfg.query_engine == "sql" else Solver(cfg, backend)

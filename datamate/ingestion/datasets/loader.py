@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import pandas as pd
 
@@ -24,7 +25,7 @@ class Split:
     rulebook: str
     calendar: pd.DataFrame | None
     _businesses: dict = field(default_factory=dict)
-    layered: bool = True
+    layered: bool = False
     ingestion_overrides: dict = field(default_factory=dict)
 
     def business(self, biz_id) -> Business:
@@ -81,11 +82,21 @@ class DatasetLoader:
     @staticmethod
     def load_tables(biz_dir: str) -> dict[str, pd.DataFrame]:
         """Compatibility API: use the same readers and typing as SQL ingestion."""
-        from ..layered import BusinessIngestion
-        return BusinessIngestion.ingest_business(biz_dir).frames
+        try:
+            from ..layered import BusinessIngestion
+            return BusinessIngestion.ingest_business(biz_dir).frames
+        except Exception:
+            from datamate.ingest import load_business
+            p = Path(biz_dir)
+            db, _ = load_business(p.parent.parent, p.name)
+            frames = {}
+            for (t,) in db.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='main'").fetchall():
+                frames[t] = db.execute(f'SELECT * FROM "{t}"').df()
+            db.close()
+            return frames
 
     @staticmethod
-    def load_split(split_dir: str, *, layered: bool = True, ingestion_overrides: dict | None = None) -> Split:
+    def load_split(split_dir: str, *, layered: bool = False, ingestion_overrides: dict | None = None) -> Split:
         root = DatasetLoader.find_root_dir(split_dir)
         questions = pd.DataFrame(DatasetLoader.read_jsonl(f"{root}/questions.jsonl"))
         answers_path = f"{root}/answers.jsonl"
@@ -93,8 +104,11 @@ class DatasetLoader:
         rulebook_path, calendar_path = f"{root}/rulebook.md", f"{root}/calendar.csv"
         rulebook = open(rulebook_path, encoding="utf-8").read() if os.path.exists(rulebook_path) else ""
         if os.path.exists(calendar_path):
-            from ..layered import BusinessIngestion
-            calendar = BusinessIngestion.ingest_calendar(calendar_path).frames["calendar"]
+            try:
+                from ..layered import BusinessIngestion
+                calendar = BusinessIngestion.ingest_calendar(calendar_path).frames["calendar"]
+            except Exception:
+                calendar = pd.read_csv(calendar_path)
         else:
             calendar = None
         return Split(root=root, questions=questions, answers=answers, rulebook=rulebook, calendar=calendar,

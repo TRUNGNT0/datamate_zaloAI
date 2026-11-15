@@ -16,7 +16,7 @@ from datamate.llm.base import LLMBackend
 
 def run_inference(cfg: Config, backend: LLMBackend | None, use_llm: bool = True):
     """Dự đoán split ở cfg.test_dir, ghi submission.jsonl + log. Trả (subs, logs, problems)."""
-    split = DatasetLoader.load_split(cfg.test_dir)
+    split = DatasetLoader.load_split(cfg.test_dir, layered=(getattr(cfg, "ingestion_mode", "direct") == "layered"))
     solver = SQLSolver(cfg, backend) if cfg.query_engine == "sql" else Solver(cfg, backend)
     subs, logs = solver.solve_split(split, "test", limit_q=cfg.limit_test, use_llm=use_llm,
                                     time_budget=cfg.time_budget_s)

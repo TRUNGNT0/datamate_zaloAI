@@ -135,7 +135,12 @@ pip install vllm>=0.32.0
 
 ### 4.1. CLI
 
-Chạy trên tập `public_test`:
+CLI mặc định dùng `--ingestion-mode direct`: đọc file nguồn và dựng DuckDB ngay trong lúc chạy,
+không cần chạy bước prepare/ingestion trước hoặc tạo manifest. File không đọc được được ghi cảnh báo
+`[direct-ingest]` và đưa vào `ingestion_issues` của ngữ cảnh; nếu cần kiểm tra đầy đủ parse/catalog,
+dùng chế độ `layered`.
+
+Chạy trực tiếp trên tập `public_test`:
 
 ```bash
 python -m datamate.predict \
@@ -147,6 +152,12 @@ python -m datamate.predict \
   --views cached \
   --views-from configs/public_v9 \
   --fewshot assets/fewshot_bank.jsonl
+```
+
+Muốn dùng ingestion nhiều lớp hiện tại (manifest, catalog và kiểm tra chất lượng) thì thêm:
+
+```bash
+--ingestion-mode layered
 ```
 
 Chạy với adapter LoRA đã huấn luyện:

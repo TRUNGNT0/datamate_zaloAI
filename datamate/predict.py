@@ -34,6 +34,8 @@ def parse_args(argv=None):
     p.add_argument("--max-retry", "--repairs", dest="max_retry", type=int, default=2, help="Max self-repair turns for failed SQL queries")
     p.add_argument("--views", choices=("cached", "llm", "none"), default="cached", help="Semantic views mode")
     p.add_argument("--views-from", type=Path, default=Path("configs/public_v9"), help="Directory containing saved views JSONs")
+    p.add_argument("--ingestion-mode", choices=("direct", "layered"), default="direct",
+                   help="direct reads source files into DuckDB; layered builds manifests/catalog during inference")
     p.add_argument("--fewshot", type=Path, default=Path("assets/fewshot_bank.jsonl"), help="Few-shot exemplars bank file")
     p.add_argument("--fewshot-k", type=int, default=4, help="Number of fewshot examples")
     p.add_argument("--limit", type=int, default=None, help="Max questions to run")
@@ -89,6 +91,7 @@ def main(argv=None):
         out_dir=str(args.output),
         database_dir=str(args.output / "databases"),
         manifest_dir=str(args.output / "manifests") if (args.output / "manifests").exists() else None,
+        ingestion_mode=args.ingestion_mode,
         backend=args.backend,
         query_engine="sql",
         local_model=args.model,

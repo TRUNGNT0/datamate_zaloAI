@@ -72,7 +72,11 @@ class SQLExecutor:
                                        ["VARCHAR", "INTEGER"], "DATE", null_handling="special")
             connection.create_function("vn_norm", norm, ["VARCHAR"], "VARCHAR")
             if calendar is not None:
-                connection.register("calendar", calendar)
+                exists = connection.execute(
+                    "SELECT 1 FROM information_schema.tables WHERE table_name = 'calendar' LIMIT 1"
+                ).fetchone()
+                if not exists:
+                    connection.register("calendar", calendar)
             connection.execute("SET lock_configuration = true")
             return connection
         except Exception:

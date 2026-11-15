@@ -72,7 +72,9 @@ def to_dates(t, year=None):
             p["year"] = year
         p = p.dropna(subset=["day", "month"])
         if len(p):
-            p = p[["year", "month", "day", "hour", "minute", "second"]].fillna(0).astype(int)
+            p = p[["year", "month", "day", "hour", "minute", "second"]].apply(
+                pd.to_numeric, errors="coerce"
+            ).fillna(0).astype(int)
             out.loc[p.index] = out.loc[p.index].fillna(pd.to_datetime(p, errors="coerce"))
     serial = t.str.fullmatch(r"[3-6]\d{4}(\.0+)?").fillna(False)
     if serial.any():
@@ -325,35 +327,58 @@ def canon_staff(db, tables):
     return changed
 
 
-def load_business(root, business, canon=False):
+def load_business(root, business, canon=False, *, database_path=None):
     root = Path(root)
     folder = root / "data" / business
     if not folder.is_dir():
         raise FileNotFoundError(folder)
-    db = duckdb.connect(":memory:")
+    if database_path is None:
+        db = duckdb.connect(":memory:")
+    else:
+        database_path = Path(database_path)
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+        if database_path.exists():
+            database_path.unlink()
+        db = duckdb.connect(str(database_path))
     tables = {}  # name -> source description
+    issues = []
     for f in sorted(folder.rglob("*")):
-        if not f.is_file() or f.name.startswith("~$"):
+        if not f.is_file() or f.name.startswith(("~$", ".")):
             continue
-        for name, sheet, rows in read_rows(f):
-            rows = [r for r in rows if any(v is not None and str(v).strip() for v in r)]
-            if len(rows) < 2:
-                continue
-            year = re.search(r"20\d{2}", str(sheet or "")) or re.search(r"20\d{2}", f.stem)
-            df = prepare(fix_header(rows), int(year.group()) if year else None)
-            if df.empty:
-                continue
-            if sheet is not None:
-                df["_sheet"] = sheet  # rulebook: a date without year takes the year of its sheet
-            name = norm(name) or "table"
-            base, i = name, 2
-            while name in tables:
-                name, i = f"{base}_{i}", i + 1
-            db.register("_src", df)
-            db.execute(f"CREATE TABLE {quote(name)} AS SELECT * FROM _src")
-            db.unregister("_src")
-            tables[name] = f.name + (f"#{sheet}" if sheet else "")
+        if f.suffix.casefold() not in {".csv", ".xlsx", ".db", ".sqlite", ".sqlite3"}:
+            issue = {"file": f.relative_to(folder).as_posix(), "error": "Unsupported source format"}
+            issues.append(issue)
+            print(f"[direct-ingest] {business}/{issue['file']}: {issue['error']}", flush=True)
+            continue
+        try:
+            for name, sheet, rows in read_rows(f):
+                rows = [r for r in rows if any(v is not None and str(v).strip() for v in r)]
+                if len(rows) < 2:
+                    continue
+                year = re.search(r"20\d{2}", str(sheet or "")) or re.search(r"20\d{2}", f.stem)
+                df = prepare(fix_header(rows), int(year.group()) if year else None)
+                if df.empty:
+                    continue
+                if sheet is not None:
+                    df["_sheet"] = sheet  # rulebook: a date without year takes the year of its sheet
+                name = norm(name) or "table"
+                base, i = name, 2
+                while name in tables:
+                    name, i = f"{base}_{i}", i + 1
+                db.register("_src", df)
+                try:
+                    db.execute(f"CREATE TABLE {quote(name)} AS SELECT * FROM _src")
+                finally:
+                    db.unregister("_src")
+                tables[name] = f.name + (f"#{sheet}" if sheet else "")
+        except Exception as exc:
+            issue = {"file": f.relative_to(folder).as_posix(), "error": f"{type(exc).__name__}: {exc}"}
+            issues.append(issue)
+            print(f"[direct-ingest] {business}/{issue['file']}: {issue['error']}", flush=True)
     if not tables:
+        db.close()
+        if database_path is not None and database_path.exists():
+            database_path.unlink()
         raise ValueError(f"No usable tables: {folder}")
     if canon:
         canon_spellings(db, list(tables))
@@ -383,7 +408,7 @@ def load_business(root, business, canon=False):
         if t["name"] != "calendar" and (lv := order_level(db, t["name"])):
             t["order_level"] = lv
     readme = "\n\n".join(p.read_text(encoding="utf-8-sig") for p in sorted(folder.rglob("*.md")))
-    return db, {"tables": info, "readme": readme}
+    return db, {"tables": info, "readme": readme, "ingestion_issues": issues}
 
 
 def order_level(db, n):

@@ -30,6 +30,8 @@ class LocalPipelineConfig:
     agree_min: int = 2
     max_retry: int = 2
     generation_timeout: float | None = 600.0
+    ingestion_mode: str = "layered"
+    require_prepared_database: bool = False
 
     def __post_init__(self):
         if min(self.sql_tokens, self.manifest_tokens) <= 0 or max(self.sql_tokens, self.manifest_tokens) >= self.max_model_len:
@@ -58,7 +60,23 @@ class DatasetPreparationPipeline:
     def prepare(self, split):
         root = Path(self.config.dataset_dir).resolve() / split
         out = Path(self.config.out_dir).resolve()
-        rules = (root / "rulebook.md").read_text(encoding="utf-8-sig")
+        rules = (root / "rulebook.md").read_text(encoding="utf-8-sig") if (root / "rulebook.md").is_file() else ""
+        if getattr(self.config, "ingestion_mode", "direct") == "direct":
+            from datamate.ingest import load_business
+            reports = []
+            for business in self.businesses(root):
+                target = out / "databases" / split / business.name / "current"
+                db_path = target / "data.duckdb"
+                try:
+                    db, meta = load_business(root, business.name, canon=True, database_path=db_path)
+                    db.close()
+                    reports.append({"business_id": business.name, "status": "ready", "reused": False,
+                                    "tables": len(meta.get("tables", [])), "database": str(db_path)})
+                except Exception as exc:
+                    reports.append({"business_id": business.name, "status": "failed", "error": str(exc)})
+            (out / "reports").mkdir(parents=True, exist_ok=True)
+            JsonStore.write({"split": split, "businesses": reports}, out / "reports" / f"prepare_{split}.json")
+            return reports
         calendar = BusinessIngestion.ingest_calendar(root / "calendar.csv", rulebook=rules)
         required = {"date", "lunar_day", "lunar_month", "lunar_year", "lunar_leap"}
         if not required <= set(calendar.frames["calendar"].columns):
@@ -102,7 +120,9 @@ class LocalSQLPipeline:
                            max_model_len=config.max_model_len, max_new_tokens=config.sql_tokens,
                            n_samples=config.n_samples, agree_min=config.agree_min, max_retry=config.max_retry,
                            generation_timeout=config.generation_timeout,
-                           chat_kwargs={"enable_thinking": False}, require_prepared_database=True)
+                           ingestion_mode=getattr(config, "ingestion_mode", "direct"),
+                           chat_kwargs={"enable_thinking": False},
+                           require_prepared_database=getattr(config, "require_prepared_database", False))
 
     @property
     def llm(self):
@@ -114,7 +134,7 @@ class LocalSQLPipeline:
     def split_config(self, split):
         out = Path(self.config.out_dir).resolve()
         dataset = Path(self.config.dataset_dir).resolve()
-        return replace(self.base, train_dir=str(dataset / "train"), test_dir=str(dataset / "public_test"),
+        return replace(self.base, train_dir=str(dataset / "train"), test_dir=str(dataset / split),
                        out_dir=str(out / split), database_dir=str(out / "databases" / split),
                        manifest_dir=str(out / "manifests" / split), run_name="qwen_local_full")
 
@@ -126,9 +146,10 @@ class LocalSQLPipeline:
         for split in splits:
             root = Path(self.config.dataset_dir).resolve() / split
             DatasetPreparationPipeline.businesses(root)
-            for name in ("rulebook.md", "calendar.csv"):
-                if not (root / name).is_file():
-                    raise FileNotFoundError(root / name)
+            if getattr(self.config, "ingestion_mode", "direct") != "direct":
+                for name in ("rulebook.md", "calendar.csv"):
+                    if not (root / name).is_file():
+                        raise FileNotFoundError(root / name)
         pipeline = DatasetPreparationPipeline(self.config, self.llm)
         return {split: pipeline.prepare(split) for split in splits}
 
@@ -138,6 +159,17 @@ class LocalSQLPipeline:
         for split in splits:
             cfg = self.split_config(split)
             root = Path(self.config.dataset_dir).resolve() / split
+            if getattr(self.config, "ingestion_mode", "direct") == "direct":
+                for business in DatasetPreparationPipeline.businesses(root):
+                    database = Path(cfg.database_dir) / business.name / "current" / "data.duckdb"
+                    if database.is_file():
+                        try:
+                            with duckdb.connect(str(database), read_only=True) as connection:
+                                connection.execute("SELECT 1")
+                        except Exception:
+                            pass
+                    reports.append({"split": split, "business_id": business.name, "status": "ready"})
+                continue
             rules = (root / "rulebook.md").read_text(encoding="utf-8-sig")
             shared = Path(cfg.database_dir) / "_shared" / "current" / "data.duckdb"
             if not shared.is_file() or not shared.with_suffix(".source.json").is_file():

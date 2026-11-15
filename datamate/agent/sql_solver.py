@@ -39,6 +39,9 @@ type: number|percent|string|date|boolean|list|table|unanswerable.
   tổng là đầy đủ khi có lỗi parse ở cột cần tính; NULL do parse lỗi không phải 0. Chỉ truy vấn
   Raw nếu có chính sách chuyển kiểu đã xác minh để xử lý giá trị đó; nếu không, trả
   unanswerable và nêu rõ số ô lỗi/thiếu.
+- ingestion_mode=direct nghĩa là dữ liệu được đọc và suy kiểu trực tiếp, không có catalog/manifest
+  kiểm toán. ingestion_issues liệt kê file không đọc được hoặc không hỗ trợ; nếu câu hỏi cần dữ liệu
+  từ các file đó thì phải trả unanswerable, không giả định phần dữ liệu còn lại là đầy đủ.
 - Nếu cột ngày dùng để lọc có completeness.parse_failed_count > 0, không được coi tổng trên
   khoảng ngày là đầy đủ. Chỉ truy vấn Raw nếu có thể parse các giá trị bằng chính sách đã xác minh;
   nếu không, trả unanswerable và nêu số ngày lỗi.

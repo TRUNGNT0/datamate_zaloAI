@@ -58,6 +58,7 @@ class Config:
     query_engine: str = "sql"         # sql (DuckDB) | pandas (baseline)
     database_dir: str = "data/cache"
     manifest_dir: str | None = None
+    ingestion_mode: str = "layered"  # "direct" reads sources into DuckDB without manifests/catalog preparation
     require_prepared_database: bool = False
     ingestion_overrides: dict = field(default_factory=dict)
     rebuild_database: bool = False
@@ -92,6 +93,8 @@ class Config:
             raise ValueError(f"local_engine phải thuộc {LOCAL_ENGINES}, nhận {self.local_engine!r}")
         if self.hf_quant not in HF_QUANT_MODES:
             raise ValueError(f"hf_quant phải thuộc {HF_QUANT_MODES}, nhận {self.hf_quant!r}")
+        if self.ingestion_mode not in ("direct", "layered"):
+            raise ValueError("ingestion_mode phải là direct hoặc layered")
         if not 1 <= self.agree_min <= self.n_samples:
             raise ValueError("cần 1 <= agree_min <= n_samples")
         if any(v > self.n_samples for v in self.min_agree_by_type.values()):

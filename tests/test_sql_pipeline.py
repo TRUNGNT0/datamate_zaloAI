@@ -138,6 +138,28 @@ class TestSQLPipeline:
         assert len(backend.prompts) == 1
         assert cached_logs[0]["cache_hit"]
 
+    def test_direct_ingestion_runs_without_manifest_and_reports_bad_files(self, split_dirs):
+        from datamate.agent.sql_context import SQLContextBuilder
+        from datamate.ingestion.datasets.loader import DatasetLoader
+
+        train, _, _ = split_dirs
+        broken = Path(train, "data", "b1", "broken.xlsx")
+        broken.write_text("not an Excel workbook", encoding="utf-8")
+        cfg = self.config(split_dirs, ingestion_mode="direct")
+        split = DatasetLoader.load_split(train)
+        database, context, _ = SQLContextBuilder(cfg).prepare(split, "b1")
+
+        assert database.is_file()
+        assert context["ingestion_mode"] == "direct"
+        assert context["ingestion_issues"][0]["file"] == "broken.xlsx"
+        assert not Path(train, "manifests").exists()
+        sales = next(table for table in context["tables"] if table["name"] == "sales")
+        amount = next(column for column in sales["columns"] if column["physical_name"] == "thanh_tien")
+        assert amount["completeness"]["status"] == "not_audited"
+        assert amount["completeness"]["parse_failed_count"] is None
+        with SQLExecutor.connect(database, split.calendar) as connection:
+            assert SQLExecutor.query(connection, "SELECT SUM(thanh_tien) FROM sales")[1] == [[190000]]
+
     def test_revenue_status_classification_covers_failed_and_in_transit(self):
         from datamate.agent.sql_context import SQLContextBuilder
 
