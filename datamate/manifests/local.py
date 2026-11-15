@@ -6,11 +6,20 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, ValidationError
 
+from datamate.llm.base import GenerationError
 from datamate.llm.prompts import BUSINESS_MANIFEST_SYSTEM_PROMPT
 from datamate.manifests.service import BusinessManifestService, SCHEMA_FILE
 from datamate.manifests.validation import ManifestValidator
 from datamate.storage.json_store import JsonStore
 from datamate.text import norm
+
+
+BATCH_SYSTEM_PROMPT = BUSINESS_MANIFEST_SYSTEM_PROMPT + (
+    "\n\nCHẾ ĐỘ BATCH (ghi đè quy tắc 'một entry cho từng source object' ở trên):\n"
+    "- Đầu ra `tables` bắt buộc chỉ chứa ĐÚNG MỘT entry tương ứng với `target_source` và CHỈ chứa các cột được cung cấp trong batch này.\n"
+    "- Mảng `source_index` chỉ dùng để tham chiếu tên cột khi suy luận quan hệ hoặc đối chiếu, TUYỆT ĐỐI KHÔNG tạo entry trong `tables` cho các source object khác ngoài `target_source`.\n"
+    "- Tuân thủ nghiêm ngặt schema: minItems=1, maxItems=1 cho mảng `tables`."
+)
 
 
 class LocalManifestGenerator:
@@ -54,7 +63,7 @@ class LocalManifestGenerator:
 
     def fit_evidence(self, prompt, schema):
         """Select complete evidence sections for a column batch, never truncate source/schema."""
-        system = self.llm.json_system(BUSINESS_MANIFEST_SYSTEM_PROMPT, schema)
+        system = self.llm.json_system(BATCH_SYSTEM_PROMPT, schema)
         def fits():
             return self.llm.fits(system, json.dumps(prompt, ensure_ascii=False), self.llm.manifest_tokens + 512)
         if fits():
@@ -83,7 +92,7 @@ class LocalManifestGenerator:
         data = BusinessManifestService.build_input(directory, rulebook, self.schema)
         evidence = BusinessManifestService.build_evidence(data)
         JsonStore.write(evidence, output / "evidence" / f"{directory.name}.json")
-        signature = self.digest([self.VERSION, BUSINESS_MANIFEST_SYSTEM_PROMPT, self.llm.tag(), self.schema, evidence])
+        signature = self.digest([self.VERSION, BATCH_SYSTEM_PROMPT, self.llm.tag(), self.schema, evidence])
         path = output / f"{directory.name}.json"
         metadata = output / "provenance" / f"{directory.name}.json"
         if path.exists() and metadata.exists() and json.loads(metadata.read_text()).get("signature") == signature:
@@ -105,6 +114,10 @@ class LocalManifestGenerator:
             schema["properties"]["business_id"]["const"] = directory.name
             table = schema["properties"]["tables"]
             table.update(minItems=1, maxItems=1)
+            unresolved = schema["properties"]["unresolved"]
+            unresolved["maxItems"] = 4
+            for field in ("topic", "reason", "needed_evidence"):
+                unresolved["items"]["properties"][field]["maxLength"] = 160
             for key in ("source_file", "source_object", "header_row_number"):
                 table["items"]["properties"][key]["const"] = source[key]
             identity = (source["source_file"], source["source_object"])
@@ -126,17 +139,18 @@ class LocalManifestGenerator:
                       "instruction": "Map exactly the supplied column batch of this source object. Include ALL supplied columns, no others. "
                                      "Keep undocumented semantics unknown. "
                                      "Include only facts/relationships supported by supplied evidence. "
-                                     "The source profile evidence id is profile:<source_file>::<source_object>."}
+                                     "The source profile evidence id is profile:<source_file>::<source_object>. "
+                                     "Keep `unresolved` to at most 4 items under 160 characters; merge related gaps; do not list a column there if it already has status=unresolved."}
             prompt = self.fit_evidence(prompt, schema)
             key = self.digest([signature, prompt, schema])
             cache = output / "batches" / directory.name / f"{key}.json"
             part = json.loads(cache.read_text()) if cache.exists() else None
             error = ""
             for attempt in range(3):
-                if part is None:
-                    request = json.dumps(prompt, ensure_ascii=False) + error
-                    part = self.llm.json(BUSINESS_MANIFEST_SYSTEM_PROMPT, request, schema, task="manifest")
                 try:
+                    if part is None:
+                        request = json.dumps(prompt, ensure_ascii=False) + error
+                        part = self.llm.json(BATCH_SYSTEM_PROMPT, request, schema, task="manifest")
                     Draft202012Validator(schema).validate(part)
                     bindings = ManifestValidator.validate(part, data["source_inventory"], data["_evidence_ids"])
                     if bindings["errors"]:
@@ -147,6 +161,11 @@ class LocalManifestGenerator:
                     if names != {c["source_name"] for c in source["columns"] if c["source_name"]}:
                         raise ValueError("Target source must include every observed column")
                     break
+                except GenerationError as exc:
+                    JsonStore.write({"error": str(exc), "manifest": getattr(exc, "last_raw", None),
+                                     "raw_outputs": getattr(exc, "raw_outputs", [])},
+                                    output / "reports" / "failures" / directory.name / f"{key}.json")
+                    raise
                 except (ValueError, ValidationError) as exc:
                     if attempt == 2:
                         JsonStore.write({"error": str(exc), "manifest": part},

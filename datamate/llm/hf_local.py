@@ -3,11 +3,59 @@ from __future__ import annotations
 
 import os
 import re
+import time
 
 from datamate.config import Config
 from .base import GenerationError, LLMBackend
 from .local_common import (has_module, is_hybrid_model, is_prequantized, quant_method, resolve_model_path,
                            sampling_kwargs, use_4bit, weights_gb, read_text_config)
+
+
+class ProgressCriteria:
+    """Theo dõi tiến độ prefill/decode và áp dụng giới hạn thời gian max_time."""
+
+    def __init__(self, prompt_len: int, max_new_tokens: int, max_time: float | None = None, log_interval: int = 128):
+        self.prompt_len = prompt_len
+        self.max_new_tokens = max_new_tokens
+        self.max_time = max_time
+        self.log_interval = log_interval
+        self.t_start = time.perf_counter()
+        self.t_decode_start = None
+        self.last_logged_tokens = 0
+        self.last_logged_time = None
+        self.prefill_logged = False
+        self.timed_out = False
+
+    def __call__(self, input_ids, scores=None, **kwargs) -> bool:
+        now = time.perf_counter()
+        seq_len = input_ids.shape[1] if hasattr(input_ids, "shape") else len(input_ids[0])
+        gen_tokens = max(0, seq_len - self.prompt_len)
+
+        if not self.prefill_logged:
+            self.prefill_logged = True
+            self.t_decode_start = now
+            self.last_logged_time = now
+            prefill_time = now - self.t_start
+            rate = self.prompt_len / max(prefill_time, 1e-4)
+            print(f"[hf] prefill {self.prompt_len} tokens in {prefill_time:.2f}s ({rate:.1f} tok/s)", flush=True)
+
+        if self.max_time is not None and (now - self.t_start) > self.max_time:
+            self.timed_out = True
+            raise TimeoutError(f"HFBackend generation exceeded max_time={self.max_time:.1f}s ({gen_tokens} tokens decoded)")
+
+        if gen_tokens - self.last_logged_tokens >= self.log_interval:
+            interval = now - self.last_logged_time
+            rate = (gen_tokens - self.last_logged_tokens) / max(interval, 1e-4)
+            elapsed = now - self.t_decode_start
+            print(f"[hf] decode {gen_tokens}/{self.max_new_tokens} tokens ({rate:.1f} tok/s, elapsed {elapsed:.1f}s)", flush=True)
+            self.last_logged_tokens = gen_tokens
+            self.last_logged_time = now
+
+        return False
+
+
+# Bí danh tương thích
+Progress = ProgressCriteria
 
 
 def hf_model_path(cfg: Config, path: str) -> str:
@@ -107,7 +155,8 @@ class HFBackend(LLMBackend):
         return len(self.tok(text, add_special_tokens=False).input_ids)
 
     def generate_with_options(self, system: str, prompt: str, n: int = 1,
-                              max_new_tokens: int | None = None, temperature: float | None = None) -> list[str]:
+                              max_new_tokens: int | None = None, temperature: float | None = None,
+                              max_time: float | None = None) -> list[str]:
         """n lời giải trong MỘT lượt (prefill một lần rồi nhân bản cache); hết VRAM thì tách lẻ từng mẫu."""
         torch, cfg, tok = self._torch, self.cfg, self.tok
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
@@ -116,6 +165,7 @@ class HFBackend(LLMBackend):
         prompt_len = ids.shape[1]
         output_tokens = max_new_tokens if max_new_tokens is not None else cfg.max_new_tokens
         temp = cfg.temperature if temperature is None else temperature
+        limit_time = max_time if max_time is not None else getattr(cfg, "generation_timeout", 600.0)
         if prompt_len + output_tokens > cfg.max_model_len:
             raise GenerationError(f"Context too long: {prompt_len} prompt + {output_tokens} output > {cfg.max_model_len}")
 
@@ -130,21 +180,39 @@ class HFBackend(LLMBackend):
                 extra["past_key_values"] = cache
             if k > 1:
                 x = ids.repeat(k, 1)
+
+            criteria = ProgressCriteria(prompt_len, output_tokens, max_time=limit_time)
+            try:
+                from transformers import StoppingCriteriaList
+                extra["stopping_criteria"] = StoppingCriteriaList([criteria])
+            except Exception:
+                extra["stopping_criteria"] = [criteria]
+
             with torch.no_grad():
                 out = self.model.generate(input_ids=x, attention_mask=torch.ones_like(x),
                                           max_new_tokens=output_tokens, pad_token_id=tok.eos_token_id,
                                           **extra, **sample)
+            t_end = time.perf_counter()
+            decode_time = t_end - (criteria.t_decode_start or t_end)
+            actual_gen = out.shape[1] - prompt_len
+            rate = actual_gen / max(decode_time, 1e-4)
+            print(f"[hf] done {actual_gen} tokens in {decode_time:.2f}s ({rate:.1f} tok/s)", flush=True)
             return [tok.decode(o[prompt_len:], skip_special_tokens=True) for o in out]
 
         try:
             try:
                 return run(n)
+            except TimeoutError:
+                raise
             except Exception as e:
                 if n == 1:
                     raise
                 torch.cuda.empty_cache()
                 print(f"[local] sinh batch {n} lỗi ({type(e).__name__}: {str(e)[:120]}) -> sinh lần lượt từng mẫu")
                 return [run(1)[0] for _ in range(n)]
+        except TimeoutError as e:
+            torch.cuda.empty_cache()
+            raise GenerationError(str(e)) from e
         except Exception as e:
             torch.cuda.empty_cache()                 # thường là OOM khi prompt quá dài
             raise GenerationError(repr(e)[:300]) from e

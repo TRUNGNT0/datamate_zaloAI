@@ -15,7 +15,7 @@ class LocalLLMService:
     supports_batch = False
     VERSION = "local-json-v1"
 
-    def __init__(self, backend, cfg, *, manifest_tokens=6144, rewrite_tokens=512):
+    def __init__(self, backend, cfg, *, manifest_tokens=3072, rewrite_tokens=512):
         self.backend, self.cfg = backend, cfg
         self.manifest_tokens, self.rewrite_tokens = manifest_tokens, rewrite_tokens
 
@@ -39,13 +39,17 @@ class LocalLLMService:
         system = self.json_system(system, schema)
         validator = Draft202012Validator(schema)
         repair = ""
+        raw_outputs = []
+        failure = ""
         for attempt in range(self.cfg.max_retry + 1):
             request = prompt + repair
             if not self.fits(system, request, budget):
                 raise GenerationError(f"{task}: prompt exceeds local context budget ({self.cfg.max_model_len}); "
                                       "increase context or reduce the evidence batch")
+            step_temp = 0.3 if (task == "manifest" and attempt > 0) else temperature
             raw = self.backend.generate_with_options(system, request, max_new_tokens=budget,
-                                                     temperature=temperature)[0]
+                                                     temperature=step_temp)[0]
+            raw_outputs.append(raw)
             try:
                 text = raw.strip()
                 if text.startswith("```") and text.endswith("```"):
@@ -55,10 +59,21 @@ class LocalLLMService:
                 return result
             except (ValueError, TypeError, IndexError) as error:
                 failure = str(error)[:600]
-            except ValidationError as error:
-                failure = error.message[:600]
+            except ValidationError:
+                err_msgs = []
+                for err in list(validator.iter_errors(result))[:3]:
+                    path = "/".join(str(p) for p in err.path)
+                    if err.validator in ("maxItems", "minItems", "maxLength", "minLength"):
+                        msg = f"violates {err.validator}={err.validator_value}"
+                    else:
+                        msg = err.message
+                    err_msgs.append(f"{path}: {msg}" if path else msg)
+                failure = ("; ".join(err_msgs) if err_msgs else "schema validation failed")[:600]
             repair = "\nPrevious response failed validation: " + failure + ". Return the complete corrected JSON."
-        raise GenerationError(f"{task}: invalid JSON after {self.cfg.max_retry + 1} attempts: {failure}")
+        exc = GenerationError(f"{task}: invalid JSON after {self.cfg.max_retry + 1} attempts: {failure}")
+        exc.raw_outputs = raw_outputs
+        exc.last_raw = raw_outputs[-1] if raw_outputs else None
+        raise exc
 
     def generate_json(self, system, prompt, schema):
         return json.dumps(self.json(system, prompt, schema), ensure_ascii=False)

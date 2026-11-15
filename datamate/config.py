@@ -81,6 +81,7 @@ class Config:
     temperature: float = 0.7          # phải > 0 để các lần sinh độc lập khác nhau
     chat_kwargs: dict = field(default_factory=dict)
     allow_cpu: bool = False           # False = backend local không có GPU thì dừng ngay
+    generation_timeout: float | None = 600.0  # Giới hạn thời gian sinh một lần (giây)
 
     def __post_init__(self):
         if self.query_engine not in ("sql", "pandas"):

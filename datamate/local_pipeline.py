@@ -21,13 +21,15 @@ class LocalPipelineConfig:
     dataset_dir: str = "dataset"
     out_dir: str = "outputs/local_sql"
     model: str = "Qwen/Qwen3.5-9B"
+    local_engine: str = "hf"
     hf_quant: str = "auto"
     max_model_len: int = 16384
     sql_tokens: int = 2048
-    manifest_tokens: int = 6144
+    manifest_tokens: int = 3072
     n_samples: int = 3
     agree_min: int = 2
     max_retry: int = 2
+    generation_timeout: float | None = 600.0
 
     def __post_init__(self):
         if min(self.sql_tokens, self.manifest_tokens) <= 0 or max(self.sql_tokens, self.manifest_tokens) >= self.max_model_len:
@@ -96,9 +98,10 @@ class LocalSQLPipeline:
     def __init__(self, config: LocalPipelineConfig, *, llm=None):
         self.config, self._llm = config, llm
         self.base = Config(backend="local", query_engine="sql", local_model=config.model,
-                           local_engine="hf", hf_quant=config.hf_quant,
+                           local_engine=config.local_engine, hf_quant=config.hf_quant,
                            max_model_len=config.max_model_len, max_new_tokens=config.sql_tokens,
                            n_samples=config.n_samples, agree_min=config.agree_min, max_retry=config.max_retry,
+                           generation_timeout=config.generation_timeout,
                            chat_kwargs={"enable_thinking": False}, require_prepared_database=True)
 
     @property

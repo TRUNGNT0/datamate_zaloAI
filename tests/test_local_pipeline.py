@@ -38,6 +38,7 @@ class LocalTransport:
                                 (t["source_file"], t["source_object"]) == (source["source_file"], source["source_object"])]
             result["tables"][0]["columns"] = [c for c in result["tables"][0]["columns"]
                                                if c["source_name"] in {v["source_name"] for v in source["columns"]}]
+            result["unresolved"] = result["unresolved"][:4]
         elif "protected_terms" in request:
             result = {"question": request["question"]}
         else:
